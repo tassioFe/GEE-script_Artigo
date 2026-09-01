@@ -1,0 +1,674 @@
+//=========================================================
+// CLASSIFICAÇÃO RANDOM FOREST MULTITEMPORAL
+// LANDSAT 5, 7, 8 e 9
+// BACIA DO RIO DE ONDAS
+// 1985 ATÉ 2020
+// COM EXPORTAÇÃO DAS MÉTRICAS
+//=========================================================
+// 1. ÁREA DE ESTUDO
+//=========================================================
+
+// IMPORTANTE:
+// Substituir pelo shapefile da bacia importado no Assets
+var rioOndas = ee.FeatureCollection('projects/bacia-do-rio-de-ondas/assets/Limite_bacia').geometry();
+// 1 Bacia importada dos Assets (veja o nome em "Imports")
+Map.centerObject(rioOndas, 9);
+Map.addLayer(rioOndas, {color: 'blue'}, 'Bacia do Rio de Ondas');
+//=========================================================
+// 2. DEFINIÇÃO DO ANO
+//=========================================================
+var ano = 2020;
+
+//=========================================================
+// 3. COLEÇÕES LANDSAT
+//=========================================================
+
+var l5 = ee.ImageCollection('LANDSAT/LT05/C02/T1_L2');
+var l7 = ee.ImageCollection('LANDSAT/LE07/C02/T1_L2');
+var l8 = ee.ImageCollection('LANDSAT/LC08/C02/T1_L2');
+var l9 = ee.ImageCollection('LANDSAT/LC09/C02/T1_L2');
+
+//=========================================================
+// 4. FUNÇÃO LANDSAT 5 E 7
+//=========================================================
+
+function prepL57(img){
+
+  var qa = img.select('QA_PIXEL');
+
+  var mask = qa.bitwiseAnd(1 << 3).eq(0)
+    .and(qa.bitwiseAnd(1 << 4).eq(0))
+    .and(qa.bitwiseAnd(1 << 5).eq(0));
+
+  var optical = img.select([
+      'SR_B1',
+      'SR_B2',
+      'SR_B3',
+      'SR_B4',
+      'SR_B5'
+    ])
+    .multiply(0.0000275)
+    .add(-0.2)
+    .rename([
+      'Blue',
+      'Green',
+      'Red',
+      'NIR',
+      'SWIR'
+    ]);
+
+  return optical.updateMask(mask);
+}
+
+//=========================================================
+// 5. FUNÇÃO LANDSAT 8 E 9
+//=========================================================
+
+function prepL89(img){
+
+  var qa = img.select('QA_PIXEL');
+
+  var mask = qa.bitwiseAnd(1 << 3).eq(0)
+    .and(qa.bitwiseAnd(1 << 4).eq(0))
+    .and(qa.bitwiseAnd(1 << 5).eq(0));
+
+  var optical = img.select([
+      'SR_B2',
+      'SR_B3',
+      'SR_B4',
+      'SR_B5',
+      'SR_B6'
+    ])
+    .multiply(0.0000275)
+    .add(-0.2)
+    .rename([
+      'Blue',
+      'Green',
+      'Red',
+      'NIR',
+      'SWIR'
+    ]);
+
+  return optical.updateMask(mask);
+}
+
+//=========================================================
+// 6. ESCOLHA AUTOMÁTICA DO SENSOR
+//=========================================================
+
+var colecao;
+
+if (ano >= 1984 && ano <= 2011){
+
+  colecao = l5
+    .filterBounds(rioOndas)
+    .filterDate(ano + '-01-01', ano + '-12-31')
+    .filter(ee.Filter.lt('CLOUD_COVER', 20))
+    .map(prepL57);
+
+}
+
+else if (ano >= 2012 && ano <= 2013){
+
+  colecao = l7
+    .filterBounds(rioOndas)
+    .filterDate(ano + '-01-01', ano + '-12-31')
+    .filter(ee.Filter.lt('CLOUD_COVER', 20))
+    .map(prepL57);
+
+}
+
+else if (ano >= 2014 && ano <= 2021){
+
+  colecao = l8
+    .filterBounds(rioOndas)
+    .filterDate(ano + '-01-01', ano + '-12-31')
+    .filter(ee.Filter.lt('CLOUD_COVER', 20))
+    .map(prepL89);
+
+}
+
+else {
+
+  colecao = l9
+    .filterBounds(rioOndas)
+    .filterDate(ano + '-01-01', ano + '-12-31')
+    .filter(ee.Filter.lt('CLOUD_COVER', 20))
+    .map(prepL89);
+
+}
+
+//=========================================================
+// 7. COMPOSIÇÃO MEDIANA
+//=========================================================
+
+var landsat = colecao
+  .median()
+  .clip(rioOndas);
+
+//=========================================================
+// 8. ÍNDICES ESPECTRAIS
+//=========================================================
+
+var ndvi = landsat.normalizedDifference(['NIR', 'Red'])
+  .rename('NDVI');
+
+var ndwi = landsat.normalizedDifference(['Green', 'NIR'])
+  .rename('NDWI');
+
+var ndbi = landsat.normalizedDifference(['SWIR', 'NIR'])
+  .rename('NDBI');
+
+// Imagem final
+var image = landsat.addBands([
+  ndvi,
+  ndwi,
+  ndbi
+]);
+
+//=========================================================
+// 9. AMOSTRAS
+//=========================================================
+
+// SUBSTITUIR PELAS AMOSTRAS REAIS
+var agua_fc = ee.FeatureCollection(agua).map(function(f){
+  return f.set('class', 1).set('nome', 'Agua');
+});
+
+var vegetacao_fc = ee.FeatureCollection(vegetacao).map(function(f){
+  return f.set('class', 2).set('nome', 'Vegetacao');
+});
+
+var agricultura_fc = ee.FeatureCollection(agricultura).map(function(f){
+  return f.set('class', 3).set('nome', 'Agricultura');
+});
+
+var solo_fc = ee.FeatureCollection(solo).map(function(f){
+  return f.set('class', 4).set('nome', 'Solo_Exposto');
+});
+
+var urbano_fc = ee.FeatureCollection(Urbano).map(function(f){
+  return f.set('class', 5).set('nome', 'Urbano');
+});
+
+var samples = agua_fc
+  .merge(vegetacao_fc)
+  .merge(agricultura_fc)
+  .merge(solo_fc)
+  .merge(urbano_fc);
+
+print('Amostras finais', samples);
+
+Map.addLayer(samples, {}, 'Amostras');
+
+Export.table.toDrive({
+  collection: samples,
+  description: 'amostras_treinamento_shp',
+  folder: 'GEE',
+  fileNamePrefix: 'amostras_treinamento',
+  fileFormat: 'SHP'
+});
+//=========================================================
+// 10. TREINAMENTO
+//=========================================================
+
+var training = image.sampleRegions({
+  collection: samples,
+  properties: ['class'],
+  scale: 30
+});
+
+//=========================================================
+// 11. RANDOM FOREST
+//=========================================================
+
+var classifier = ee.Classifier.smileRandomForest(300)
+  .train({
+    features: training,
+    classProperty: 'class',
+    inputProperties: image.bandNames()
+  });
+
+//=========================================================
+// 12. MÉTRICAS
+//=========================================================
+
+var trainAccuracy = training.classify(classifier);
+
+//--------------------------------------
+// MATRIZ DE CONFUSÃO
+//--------------------------------------
+
+var confusionMatrix = trainAccuracy.errorMatrix(
+  'class',
+  'classification'
+);
+
+//--------------------------------------
+// MÉTRICAS
+//--------------------------------------
+
+var overallAccuracy = confusionMatrix.accuracy();
+
+var kappa = confusionMatrix.kappa();
+
+var producerAccuracy =
+  confusionMatrix.producersAccuracy();
+
+var userAccuracy =
+  confusionMatrix.consumersAccuracy();
+
+//=========================================================
+// 13. RESULTADOS
+//=========================================================
+
+print('=========================');
+print('ANO:', ano);
+
+print('=========================');
+print('NÚMERO DE IMAGENS:');
+print(colecao.size());
+
+print('=========================');
+print('MATRIZ DE CONFUSÃO');
+print(confusionMatrix);
+
+print('=========================');
+print('ACURÁCIA GLOBAL');
+print(overallAccuracy);
+
+print('=========================');
+print('KAPPA');
+print(kappa);
+
+print('=========================');
+print('ACURÁCIA PRODUTOR');
+print(producerAccuracy);
+
+print('=========================');
+print('ACURÁCIA USUÁRIO');
+print(userAccuracy);
+
+//=========================================================
+// 14. IMPORTÂNCIA DAS VARIÁVEIS
+//=========================================================
+
+var importance = classifier.explain();
+
+var dict = ee.Dictionary(
+  importance.get('importance')
+);
+
+var chart = ui.Chart.feature.byProperty(
+  ee.Feature(null, dict)
+)
+.setChartType('ColumnChart')
+.setOptions({
+  title: 'Importância das Variáveis',
+  legend: {position: 'none'},
+  hAxis: {
+    title: 'Bandas e Índices'
+  },
+  vAxis: {
+    title: 'Importância'
+  }
+});
+
+print(chart);
+
+//=========================================================
+// 15. CLASSIFICAÇÃO
+//=========================================================
+
+var classified = image.classify(classifier);
+
+//=========================================================
+// 16. ÁREA E PERCENTUAL DAS CLASSES
+//=========================================================
+
+//--------------------------------------
+// ÁREA PIXEL
+//--------------------------------------
+
+var areaImage = ee.Image.pixelArea()
+  .addBands(classified);
+
+//--------------------------------------
+// REDUCE REGION
+//--------------------------------------
+
+var areas = areaImage.reduceRegion({
+  reducer: ee.Reducer.sum().group({
+    groupField: 1,
+    groupName: 'class'
+  }),
+  geometry: rioOndas,
+  scale: 30,
+  maxPixels: 1e13
+});
+//--------------------------------------
+// LISTA
+//--------------------------------------
+var classAreas = ee.List(
+  areas.get('groups')
+);
+//--------------------------------------
+// ÁREA TOTAL
+//--------------------------------------
+var totalArea = ee.Number(
+  classAreas.iterate(function(item, sum){
+    item = ee.Dictionary(item);
+    return ee.Number(sum)
+      .add(
+        ee.Number(item.get('sum'))
+      );
+  }, 0)
+);
+//=========================================================
+// FEATURE COLLECTION
+//=========================================================
+var tabelaAreas = ee.FeatureCollection(
+  classAreas.map(function(item){
+    item = ee.Dictionary(item);
+    //----------------------------------
+    // CLASSE
+    //----------------------------------
+    var classe =
+      ee.Number(
+        item.get('class')
+      );
+    //----------------------------------
+    // ÁREA M²
+    //----------------------------------
+    var area_m2 =
+      ee.Number(
+        item.get('sum')
+      );
+    //----------------------------------
+    // HECTARES
+    //----------------------------------
+    var area_ha =
+      area_m2.divide(10000);
+    //----------------------------------
+    // KM²
+    //----------------------------------
+    var area_km2 =
+      area_m2.divide(1000000);
+    //----------------------------------
+    // PERCENTUAL
+    //----------------------------------
+    var percentual =
+      area_m2
+      .divide(totalArea)
+      .multiply(100);
+    //----------------------------------
+    // NOME CLASSE
+    //----------------------------------
+    var nome = ee.Algorithms.If(
+      classe.eq(1),
+      'Agua',
+      ee.Algorithms.If(
+        classe.eq(2),
+        'Vegetacao',
+        ee.Algorithms.If(
+          classe.eq(3),
+          'Agricultura',
+          ee.Algorithms.If(
+            classe.eq(4),
+            'Solo Exposto',
+            'Urbano'
+          )
+        )
+      )
+    );
+    //----------------------------------
+    // FEATURE
+    //----------------------------------
+    return ee.Feature(null, {
+      'Ano': ano,
+      'Classe': classe,
+      'Nome': nome,
+      'Area_m2': area_m2,
+      'Area_ha': area_ha,
+      'Area_km2': area_km2,
+      'Percentual': percentual
+    });
+  })
+);
+//=========================================================
+// RESULTADOS
+//=========================================================
+print(
+  'ÁREA E PERCENTUAL CLASSES',
+  tabelaAreas
+);
+//=========================================================
+// EXPORTAÇÃO CSV
+//=========================================================
+Export.table.toDrive({
+  collection: tabelaAreas,
+  description:
+    'Area_Percentual_' + ano,
+  folder:'GEE',
+  fileFormat:'CSV'
+});
+//=========================================================
+// 17. VISUALIZAÇÃO RGB
+//=========================================================
+
+Map.addLayer(
+  landsat,
+  {
+    bands: ['Red', 'Green', 'Blue'],
+    min: 0.02,
+    max: 0.3
+  },
+  'RGB ' + ano
+);
+//=========================================================
+// 17.1 EXPORTAÇÃO RGB VISUAL
+//=========================================================
+
+var rgbVisual = landsat.visualize({
+  bands: ['Red', 'Green', 'Blue'],
+  min: 0.02,
+  max: 0.3
+});
+
+Export.image.toDrive({
+  image: rgbVisual,
+  description: 'RGB_Visual_RioOndas_' + ano,
+  folder: 'GEE',
+  region: rioOndas,
+  scale: 30,
+  maxPixels: 1e13
+});
+//=========================================================
+// 18. VISUALIZAÇÃO CLASSIFICADA
+//=========================================================
+
+Map.addLayer(
+  classified,
+  {
+    min: 1,
+    max: 5,
+    palette: [
+      '0000ff',
+      '006400',
+      'ffff00',
+      'd2b48c',
+      'ff0000'
+    ]
+  },
+  'RF ' + ano
+);
+
+//=========================================================
+// 19. EXPORTAÇÃO DA CLASSIFICAÇÃO
+//=========================================================
+
+Export.image.toDrive({
+  image: classified,
+  description: 'RF_RioOndas_' + ano,
+  folder: 'GEE',
+  region: rioOndas,
+  scale: 30,
+  maxPixels: 1e13
+});
+
+//=========================================================
+// 20. EXPORTAÇÃO DAS MÉTRICAS
+//=========================================================
+
+//--------------------------------------
+// MATRIZ + OA + KAPPA
+//--------------------------------------
+
+var matrizArray = ee.Array(
+  confusionMatrix.array()
+);
+
+var metricasFeature = ee.Feature(null, {
+
+  'Ano': ano,
+
+  'Matriz_Confusao':
+    matrizArray.toString(),
+
+  'Acuracia_Global':
+    overallAccuracy,
+
+  'Kappa':
+    kappa
+
+});
+
+var metricasFC = ee.FeatureCollection([
+  metricasFeature
+]);
+
+Export.table.toDrive({
+  collection: metricasFC,
+  description: 'Metricas_RF_' + ano,
+  folder: 'GEE',
+  fileFormat: 'CSV'
+});
+
+//=========================================================
+// 21. EXPORTAÇÃO ACURÁCIA PRODUTOR
+//=========================================================
+
+var produtorFeature = ee.Feature(null, {
+  'Ano': ano,
+  'Acuracia_Produtor': producerAccuracy.toString()
+});
+
+var produtorFC = ee.FeatureCollection([
+  produtorFeature
+]);
+
+Export.table.toDrive({
+  collection: produtorFC,
+  description: 'Acuracia_Produtor_' + ano,
+  folder: 'GEE',
+  fileFormat: 'CSV'
+});
+
+//=========================================================
+// 22. EXPORTAÇÃO ACURÁCIA USUÁRIO
+//=========================================================
+
+var usuarioFC = ee.FeatureCollection([
+
+  ee.Feature(null, {
+
+    'Classe_1':
+      userAccuracy.get([0,0]),
+
+    'Classe_2':
+      userAccuracy.get([0,1]),
+
+    'Classe_3':
+      userAccuracy.get([0,2]),
+
+    'Classe_4':
+      userAccuracy.get([0,3]),
+
+    'Classe_5':
+      userAccuracy.get([0,4])
+
+  })
+
+]);
+
+Export.table.toDrive({
+
+  collection: usuarioFC,
+
+  description:
+    'Acuracia_Usuario_' + ano,
+
+  folder: 'GEE',
+
+  fileFormat: 'CSV'
+
+});
+
+//=========================================================
+// 23. EXPORTAÇÃO IMPORTÂNCIA VARIÁVEIS
+//=========================================================
+
+var importanceFeature = ee.Feature(
+  null,
+  dict
+);
+
+var importanceFC = ee.FeatureCollection([
+  importanceFeature
+]);
+
+Export.table.toDrive({
+
+  collection: importanceFC,
+
+  description:
+    'Importancia_Variaveis_' + ano,
+
+  folder: 'GEE',
+
+  fileFormat: 'CSV'
+
+});
+//=========================================================
+// 24. EXPORTAÇÃO DA MATRIZ DE CONFUSÃO
+//=========================================================
+
+var matrizLista = ee.List(confusionMatrix.array().toList());
+var classes = ee.List([1, 2, 3, 4, 5]);
+
+var matrizFC = ee.FeatureCollection(
+  ee.List.sequence(0, classes.length().subtract(1)).map(function(i) {
+    i = ee.Number(i);
+    var linha = ee.List(matrizLista.get(i));
+    var classeReal = classes.get(i);
+
+    return ee.Feature(null, {
+      'Ano': ano,
+      'Classe_Real': classeReal,
+      'Pred_Classe_1': linha.get(0),
+      'Pred_Classe_2': linha.get(1),
+      'Pred_Classe_3': linha.get(2),
+      'Pred_Classe_4': linha.get(3),
+      'Pred_Classe_5': linha.get(4)
+    });
+  })
+);
+
+print('MATRIZ DE CONFUSÃO EXPORTÁVEL', matrizFC);
+
+Export.table.toDrive({
+  collection: matrizFC,
+  description: 'Matriz_Confusao_' + ano,
+  folder: 'GEE',
+  fileFormat: 'CSV'
+});
