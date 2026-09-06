@@ -1,13 +1,21 @@
+ ## *CLASSIFICAÇÃO DE USO E OCUPAÇÃO DA TERRA NA BACIA HIDROGRÁFICA DO RIO DE ONDAS-BA ATRAVÉS DE ALGORÍTMO DE APRENDIZADO DE MÁQUINA*
+ 
+ <p align="justify">
+Esse projeto se trata de um estudo na região da bacia do Rio de Ondas - BA, sobre uso e cobertura  da terra,  através da plataforma do Google Earth Engine (GEE), com processamento de imagens dos landsat 5 TM e landsat8 OLI, implementando algoritmo de aprendizagem de maquina Random Forest. Abaixo segue o produtos gerados nesse projeto:
+</p>
 
 <div align="center">
- Figura 1 – Mapa de localização da bacia hidrográfica do Rio de Ondas- BA. 
+ 
+### Figura 1 – Mapa de localização da bacia hidrográfica do Rio de Ondas- BA. 
 <img width="1123" height="794" alt="localização_Mapa-test4" src="https://github.com/user-attachments/assets/655e0ac0-8526-43bd-98bc-e82fbf0ea142" />
 
 *Fonte: autor.*
+
+</div>
+
 <div align="center">
 
-
- Figura 2 – Mosaico dos mapas classificados.
+### Figura 2 – Mosaico dos mapas classificados.
 <img width="1123" height="794" alt="Mosaico_Mapas3" src="https://github.com/user-attachments/assets/7b36d693-9720-490f-9e06-46b0ab74056b" /> 
 
 *Fonte: autor.*
