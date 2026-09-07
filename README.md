@@ -56,4 +56,19 @@ Esse projeto se trata de um estudo na região da bacia do Rio de Ondas - BA, sob
 *Fonte: autor.*
 </div>
 
+---
+
+## 🚀 Como Executar o Script
+
+Este código foi desenvolvido para ser executado exclusivamente na plataforma **Google Earth Engine (GEE)**. Para reproduzir a análise ou aplicar o algoritmo em outra área de estudo, siga os passos abaixo:
+
+1. Clique no arquivo `script_artigo` listado no topo desta página do GitHub e copie todo o código (Ctrl + A e Ctrl + C).
+2. Acesse a plataforma oficial do [Google Earth Engine Code Editor](https://google.com) (é necessário ter uma conta gratuita cadastrada na plataforma).
+3. Cole o código no painel central do editor de scripts do GEE.
+4. Clique no botão **Run** (Executar) no menu superior para rodar o processamento e carregar as camadas no mapa interativo.
+
+⚠️ **Nota Importante (Pré-requisitos):** 
+Para que o código funcione corretamente na sua área de interesse, você precisará adaptar as variáveis de entrada. Certifique-se de carregar previamente no seu painel de *Assets* do GEE:
+* A **delimitação da bacia hidrográfica** ou vetor da sua área de estudo (em formato Shapefile ou Table Asset).
+* As **amostras de treinamento e validação** (pontos de campo coletados) correspondentes às classes de uso do solo que deseja mapear.
 
