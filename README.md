@@ -45,7 +45,7 @@ Esse projeto se trata de um estudo na região da bacia do Rio de Ondas - BA, sob
 
 ### Tabela 2: Comparativo de Índices Kappa (Real vs. Automático)
 
-| Anos | Kappa GEE<br>(Automático) | Kappa ArcGIS<br>(Manual) | Diferença<br>(viciamento) |
+| Anos | Kappa GEE<br>(Automático) | Kappa ArcGIS<br>(Manual) | Diferença<br>(Viciamento) |
 | :---: | :---: | :---: | :---: |
 | 1985 | 1.0 (100%) | 0.28 (28%) | 72 % |
 | 1990 | 0.99 (99%) | 0.18 (18%) | 81% |
